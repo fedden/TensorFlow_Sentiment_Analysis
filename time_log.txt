@@ -1,0 +1,1 @@
+11pm Thurs -> 12.45am Friday - upgrading tensorflow, starting data preprocessing
