@@ -157,22 +157,22 @@ def train_test_valid_split(examples, train_amount, test_amount, valid_amount):
 
 def get_split_dataset(train_amount, test_amount, valid_amount):
     """"""
-    files_exist = (os.path.isfile("preprocessed_data/train.p") and
-                   os.path.isfile("preprocessed_data/test.p") and
-                   os.path.isfile("preprocessed_data/valid.p"))
+    files_exist = (os.path.isfile("train.p") and
+                   os.path.isfile("test.p") and
+                   os.path.isfile("valid.p"))
     if files_exist:
         print "Loading Pickle files."
-        train = pickle.load(open("preprocessed_data/train.p", "rb"))
-        test = pickle.load(open("preprocessed_data/test.p", "rb"))
-        valid = pickle.load(open("preprocessed_data/valid.p", "rb"))
-        stats = pickle.load(open("preprocessed_data/stats.p", "rb"))
+        train = pickle.load(open("train.p", "rb"))
+        test = pickle.load(open("test.p", "rb"))
+        valid = pickle.load(open("valid.p", "rb"))
+        stats = pickle.load(open("stats.p", "rb"))
     else:
         print "Creating dataset and saving Pickle files."
         examples, stats = files_to_examples()
         train, test, valid = train_test_valid_split(examples, train_amount,
                                                     test_amount, valid_amount)
-        pickle.dump(train, open("preprocessed_data/train.p", "wb"))
-        pickle.dump(test, open("preprocessed_data/test.p", "wb"))
-        pickle.dump(valid, open("preprocessed_data/valid.p", "wb"))
-        pickle.dump(stats, open("preprocessed_data/stats.p", "wb"))
+        pickle.dump(train, open("train.p", "wb"))
+        pickle.dump(test, open("test.p", "wb"))
+        pickle.dump(valid, open("valid.p", "wb"))
+        pickle.dump(stats, open("stats.p", "wb"))
     return train, test, valid, stats
