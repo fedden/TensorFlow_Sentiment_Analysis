@@ -1,6 +1,4 @@
-dataset.pyc
-model.pyc
-utils.pyc
+*.pyc
 stats.p
 train.p
 valid.p
