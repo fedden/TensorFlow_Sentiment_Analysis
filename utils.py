@@ -1,5 +1,55 @@
 import numpy as np
+import string
 import re
+import os
+import cPickle as pickle
+
+class VocabularyIndex:
+
+    """This class turns words into indices.
+
+    It stores each UNIQUE word in a look up table.
+    """
+
+    def __init__(self, max_word_length=300):
+        """Sets the max word length and creates an empty list."""
+        self.max_length = max_word_length
+        self.vocabulary_lookup_table = []
+
+    def get_index(self, word):
+        """Returns the index of the word.
+
+        Arguments:
+        word -- word whose index must be found or created.
+
+        If the word doesn't exist, it appends the word to the list. Note this
+        returns the index plus one because zero is used for padding.
+        """
+        if not word in self.vocabulary_lookup_table:
+            self.vocabulary_lookup_table.append(word)
+        return (self.vocabulary_lookup_table.index(word) + 1)
+
+    def process(self, string):
+        """This chops up a string into words and transforms the string into a
+        list of indices for each word.
+        """
+        words = string.split()
+        indices = []
+        for i, word in enumerate(words):
+            if i >= self.max_length:
+                break
+            indices.append(self.get_index(word))
+        if len(indices) < self.max_length:
+            indices += [0 for i in range(self.max_length - len(indices))]
+        return indices, len(words)
+
+    def vocab_size(self):
+        """This returns the length of the lookup table of words."""
+        return len(self.vocabulary_lookup_table)
+
+def global_seed(seed):
+    """Seed numpy."""
+    np.random.seed(seed)
 
 def load_csv(path):
     """Get a 2D numpy array of strings from a csv file.
@@ -7,8 +57,7 @@ def load_csv(path):
     Arguments:
     path -- the path to the csv file.
     """
-    print np.loadtxt(path, dtype='str', delimiter=" ")
-    return
+    return np.loadtxt(path, dtype='str', delimiter="\t", comments=None)
 
 def strip_html_tags(html_string):
     """Strip HTML tags from string using regex.
@@ -22,6 +71,30 @@ def strip_html_tags(html_string):
     detagger = re.compile('<.*?>')
     return re.sub(detagger, '', html_string)
 
+def strip_punctuation(input_string):
+    """Strips all punctuation from input string.
+
+    Arguments:
+    input_string -- a string with punctuation to be removed from it.
+
+    Referenced from:
+    http://stackoverflow.com/a/266162/5398272
+    """
+    exclude = set(string.punctuation)
+    return ''.join(char for char in input_string if char not in exclude)
+
+def lower_case(input_string):
+    """Removes any capital letters from string."""
+    return input_string.lower()
+
+def preprocess_words(input_string, vocab_lookup):
+    """Removes html tags, punctuation and lower cases input string."""
+    input_string = strip_html_tags(input_string)
+    input_string = strip_punctuation(input_string)
+    input_string = lower_case(input_string)
+    indices, sequence_length = vocab_lookup.process(input_string)
+    return indices, sequence_length
+
 def files_to_examples():
     """Returns list of example dictionaries.
 
@@ -33,12 +106,13 @@ def files_to_examples():
 
     The function concatenates all of the rows from each csv into a single list
     from the dictionary. Each review for each example has it's html tags
-    stripped too.
+    stripped as well as other preprocessing steps.
 
     Returns:
     all_examples -- list of dictionaries containing x and y data for supervised
                     learning.
     """
+    vocab_lookup = VocabularyIndex()
     all_examples = []
     csv_paths = [
         'data/Andy-Weir-The-Martian.csv',
@@ -50,15 +124,55 @@ def files_to_examples():
         'data/Paula_Hawkins-The-Girl-On-The-Train.csv',
         'data/Suzanne-Collins-The-Hunger-Games.csv'
     ]
+    stats = {
+        'max_sequence_length' : 0,
+        'vocabulary_size' : 0
+    }
+    one_hot = np.eye(5)
     for path in csv_paths:
         csv_array = load_csv(path)
-        for row in range(len(csv_array)):
+        for row in csv_array:
+            review, length = preprocess_words(row[3], vocab_lookup)
+            rating = int(float(row[0])) - 1
             example = {
-                'rating' : int(row[0]),
-                'title'  : row[2],
-                'review' : strip_html_tags(row[3])
+                'rating'          : one_hot[rating],
+                'review'          : review,
+                'title'           : row[2],
+                'sequence_length' : length
             }
+            assert (rating < 5 and rating > -1)
             all_examples.append(example)
-    return all_examples
+            if len(example['review']) > stats['max_sequence_length']:
+                stats['max_sequence_length'] = len(example['review'])
+    stats['vocabulary_size'] = vocab_lookup.vocab_size()
+    return all_examples, stats
 
-_ = files_to_examples()
+def train_test_valid_split(examples, train_amount, test_amount, valid_amount):
+    """This splits the examples into test, train and validation sets."""
+    assert (train_amount + test_amount + valid_amount) == 1.0
+    np.random.shuffle(examples)
+    train = int(len(examples) * train_amount)
+    test = train + int(len(examples) * test_amount)
+    return examples[:train], examples[train:test], examples[test:]
+
+def get_split_dataset(train_amount, test_amount, valid_amount):
+    """"""
+    files_exist = (os.path.isfile("preprocessed_data/train.p") and
+                   os.path.isfile("preprocessed_data/test.p") and
+                   os.path.isfile("preprocessed_data/valid.p"))
+    if files_exist:
+        print "Loading Pickle files."
+        train = pickle.load(open("preprocessed_data/train.p", "rb"))
+        test = pickle.load(open("preprocessed_data/test.p", "rb"))
+        valid = pickle.load(open("preprocessed_data/valid.p", "rb"))
+        stats = pickle.load(open("preprocessed_data/stats.p", "rb"))
+    else:
+        print "Creating dataset and saving Pickle files."
+        examples, stats = files_to_examples()
+        train, test, valid = train_test_valid_split(examples, train_amount,
+                                                    test_amount, valid_amount)
+        pickle.dump(train, open("preprocessed_data/train.p", "wb"))
+        pickle.dump(test, open("preprocessed_data/test.p", "wb"))
+        pickle.dump(valid, open("preprocessed_data/valid.p", "wb"))
+        pickle.dump(stats, open("preprocessed_data/stats.p", "wb"))
+    return train, test, valid, stats
