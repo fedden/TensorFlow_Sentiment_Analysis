@@ -1,2 +1,1 @@
-11pm Thurs -> 2.00am Friday - upgrading tensorflow, starting data preprocessing
-11am Friday ->
+Amount of time: 20 - 25 hours

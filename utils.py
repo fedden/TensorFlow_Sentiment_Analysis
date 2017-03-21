@@ -113,7 +113,6 @@ def files_to_examples():
                     learning.
     """
     vocab_lookup = VocabularyIndex()
-    all_examples = []
     csv_paths = [
         'data/Andy-Weir-The-Martian.csv',
         'data/Donna-Tartt-The-Goldfinch.csv',
@@ -128,6 +127,7 @@ def files_to_examples():
         'max_sequence_length' : 0,
         'vocabulary_size' : 0
     }
+    examples_by_rating = [[] for i in range(5)]
     one_hot = np.eye(5)
     for path in csv_paths:
         csv_array = load_csv(path)
@@ -141,15 +141,29 @@ def files_to_examples():
                 'sequence_length' : length
             }
             assert (rating < 5 and rating > -1)
-            all_examples.append(example)
+
             if len(example['review']) > stats['max_sequence_length']:
                 stats['max_sequence_length'] = len(example['review'])
+            examples_by_rating[rating].append(example)
     stats['vocabulary_size'] = vocab_lookup.vocab_size()
+
+    examples_by_rating = sorted(examples_by_rating, key=lambda x: len(x))
+    for i in range(5):
+        print "rating: " + str(i + 1) + ", length: " + str(len(examples_by_rating[i]))
+
+    smallest_rating_size = len(examples_by_rating[0])
+    all_examples = []
+    for i in range(5):
+        all_examples += examples_by_rating[i][0:smallest_rating_size]
+
+    print len(all_examples)
+
     return all_examples, stats
 
 def train_test_valid_split(examples, train_amount, test_amount, valid_amount):
     """This splits the examples into test, train and validation sets."""
     assert (train_amount + test_amount + valid_amount) == 1.0
+    assert examples != None and len(examples) != 0
     np.random.shuffle(examples)
     train = int(len(examples) * train_amount)
     test = train + int(len(examples) * test_amount)
@@ -157,9 +171,8 @@ def train_test_valid_split(examples, train_amount, test_amount, valid_amount):
 
 def get_split_dataset(train_amount, test_amount, valid_amount):
     """"""
-    files_exist = (os.path.isfile("train.p") and
-                   os.path.isfile("test.p") and
-                   os.path.isfile("valid.p"))
+    files_exist = (os.path.isfile("train.p") and os.path.isfile("test.p") and
+                   os.path.isfile("valid.p") and os.path.isfile("stats.p"))
     if files_exist:
         print "Loading Pickle files."
         train = pickle.load(open("train.p", "rb"))
